@@ -531,6 +531,9 @@ class llama_cpp_instruct_adv:
             messages.append({"role": "assistant", "content": out1})
             clear_message = self.sanitize_messages(messages)
             llama_model.messages[f"{uid}"] = clear_message
+        else:
+            if not llama_model.messages.get(f"{uid}"):
+                llama_model.sys_prompts.pop(f"{uid}", None)
             
         if force_offload:
             llama_model.clean()
