@@ -59,18 +59,18 @@ class LLAMA_CPP_STORAGE:
     llm = None
     chat_handler = None
     current_config = None
-    states = {}
+    #states = {}
     messages = {}
     sys_prompts = {}
 
     @classmethod
     def clean_state(cls, id=-1):
         if id == -1:
-            cls.states.clear()
+            #cls.states.clear()
             cls.messages.clear()
             cls.sys_prompts.clear()
         else:
-            cls.states.pop(f"{id}", None)
+            #cls.states.pop(f"{id}", None)
             cls.messages.pop(f"{id}", None)
             cls.sys_prompts.pop(f"{id}", None)
         
@@ -453,7 +453,7 @@ class llama_cpp_instruct_adv:
             if save_states:
                 try:
                     print(f"[llama-cpp_vlm] Loading state and history id={uid}...")
-                    llama_model.llm.load_state(llama_model.states[f"{uid}"])
+                    #llama_model.llm.load_state(llama_model.states[f"{uid}"])
                     messages = llama_model.messages.get(f"{uid}", [])
                 except Exception as e:
                     messages = []
@@ -527,7 +527,7 @@ class llama_cpp_instruct_adv:
             
         if save_states:
             print(f"[llama-cpp_vlm] Saving state id={uid}...")
-            llama_model.states[f"{uid}"] = llama_model.llm.save_state()
+            #llama_model.states[f"{uid}"] = llama_model.llm.save_state()
             messages.append({"role": "assistant", "content": out1})
             clear_message = self.sanitize_messages(messages)
             llama_model.messages[f"{uid}"] = clear_message
