@@ -47,9 +47,15 @@ try:
     from llama_cpp.llama_chat_format import (GLM46VChatHandler, LFM2VLChatHandler, GLM41VChatHandler)
     chat_handlers += ["GLM-4.6V", "GLM-4.1V-Thinking", "LFM2-VL"]
 except:
-    GLM46VChatHandler  = None
-    LFM2VLChatHandler  = None
-    GLM41VChatHandler  = None
+    GLM46VChatHandler = None
+    LFM2VLChatHandler = None
+    GLM41VChatHandler = None
+    
+try:
+    from llama_cpp.llama_chat_format import GraniteDoclingChatHandler
+    chat_handlers += ["Granite-Docling"]
+except:
+    GraniteDoclingChatHandler = None
 
 class AnyType(str):
     def __ne__(self, __value: object) -> bool:
@@ -125,6 +131,8 @@ class LLAMA_CPP_STORAGE:
                     return GLM41VChatHandler
                 case "LFM2-VL":
                     return LFM2VLChatHandler
+                case "Granite-Docling":
+                    return GraniteDoclingChatHandler
                 case "None":
                     return None
                 case _:
