@@ -36,6 +36,12 @@ try:
     chat_handlers += ["Gemma3"]
 except:
     Gemma3ChatHandler = None
+    
+try:
+    from llama_cpp.llama_chat_format import Gemma4ChatHandler
+    chat_handlers += ["Gemma4"]
+except:
+    Gemma3ChatHandler = None
 
 try:
     from llama_cpp.llama_chat_format import Qwen25VLChatHandler
@@ -62,6 +68,12 @@ except:
     GLM46VChatHandler = None
     LFM2VLChatHandler = None
     GLM41VChatHandler = None
+
+try:
+    from llama_cpp.llama_chat_format import LFM25VLChatHandler
+    chat_handlers += ["LFM2.5-VL"]
+except:
+    LFM25VLChatHandler = None
     
 try:
     from llama_cpp.llama_chat_format import GraniteDoclingChatHandler
@@ -139,12 +151,16 @@ class LLAMA_CPP_STORAGE:
                     return MiniCPMv26ChatHandler
                 case "Gemma3":
                     return Gemma3ChatHandler
+                case "Gemma4":
+                    return Gemma4ChatHandler
                 case "GLM-4.6V"|"GLM-4.6V-Thinking":
                     return GLM46VChatHandler
                 case "GLM-4.1V-Thinking":
                     return GLM41VChatHandler
                 case "LFM2-VL":
                     return LFM2VLChatHandler
+                case "LFM2.5-VL":
+                    return LFM25VLChatHandler
                 case "Granite-Docling":
                     return GraniteDoclingChatHandler
                 case "None":
