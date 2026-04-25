@@ -1,5 +1,6 @@
 import os
 import io
+import re
 import gc
 import json
 import base64
@@ -393,6 +394,25 @@ class llama_cpp_model_loader:
             LLAMA_CPP_STORAGE.load_model(custom_config)
         return (custom_config,)
 
+def extract_thought(text):
+    # 尝试匹配完整的 <think>...</think>
+    thought_match = re.search(r'<think>(.*?)</think>', text, re.DOTALL)
+    if thought_match:
+        thought = thought_match.group(1).strip()
+        output = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
+        return output, thought
+    
+    # 如果只有结束标签 </think>，则将之前的内容全部视为思维链
+    if '</think>' in text:
+        parts = text.split('</think>', 1)
+        thought = parts[0].strip()
+        # 移除可能残留的 <think> 标签（以防万一）
+        thought = thought.replace('<think>', '').strip()
+        output = parts[1].strip()
+        return output, thought
+        
+    return text, ""
+
 class llama_cpp_instruct_adv:
     @classmethod
     def INPUT_TYPES(s):
@@ -438,25 +458,33 @@ class llama_cpp_instruct_adv:
                 "images": ("IMAGE",),
                 "queue_handler": (any_type, {"tooltip": "Used to control the execution order of instruct nodes."}),
             },
-            
+
         }
-    
-    RETURN_TYPES = ("STRING", "STRING", "INT")
-    RETURN_NAMES = ("output", "output_list", "state_uid")
-    OUTPUT_IS_LIST = (False, True, False)
+
+    RETURN_TYPES = ("STRING", "STRING", "STRING", "INT")
+    RETURN_NAMES = ("output", "thought", "output_list", "state_uid")
+    OUTPUT_IS_LIST = (False, False, True, False)
     FUNCTION = "process"
     CATEGORY = "llama-cpp-vlm"
-    
+
     def sanitize_messages(self, messages):
-        clean_messages = messages.copy()
-        for msg in clean_messages:
+        clean_messages = []
+        for msg in messages:
+            new_msg = msg.copy()
             content = msg.get("content")
             if isinstance(content, list):
+                new_content = []
                 for item in content:
                     if isinstance(item, dict) and item.get("type") == "image_url":
-                        item["image_url"]["url"] = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAACXBIWXMAAAsTAAALEwEAmpwYAAAADElEQVQImWP4//8/AAX+Av5Y8msOAAAAAElFTkSuQmCC"
-        return clean_messages
-    
+                        # 替换 base64 为 1x1 占位图以节省显存/内存
+                        new_item = item.copy()
+                        new_item["image_url"] = {"url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAACXBIWXMAAAsTAAALEwEAmpwYAAAADElEQVQImWP4//8/AAX+Av5Y8msOAAAAAElFTkSuQmCC"}
+                        new_content.append(new_item)
+                    else:
+                        new_content.append(item)
+                new_msg["content"] = new_content
+            clean_messages.append(new_msg)
+        return clean_messages    
     def process(self, llama_model, preset_prompt, custom_prompt, system_prompt, inference_mode, max_frames, max_size, seed, force_offload, save_states, unique_id, parameters=None, images=None, queue_handler=None):
         if not LLAMA_CPP_STORAGE.llm:
             LLAMA_CPP_STORAGE.load_model(llama_model)
@@ -506,7 +534,9 @@ class llama_cpp_instruct_adv:
             else:
                 messages = []
         out1 = ""
+        out_thought = ""
         out2 = []
+        out_thought_list = []
         user_content = []
         if custom_prompt.strip() and "*" not in preset_prompt:
             user_content.append({"type": "text", "text": custom_prompt})
@@ -525,6 +555,7 @@ class llama_cpp_instruct_adv:
                 
             if inference_mode == "one by one":
                 tmp_list = []
+                tmp_thought_list = []
                 image_content = {
                     "type": "image_url",
                     "image_url": {"url": ""}
@@ -542,13 +573,28 @@ class llama_cpp_instruct_adv:
                             item["image_url"]["url"] = f"data:image/jpeg;base64,{data}"
                             break
                     output = LLAMA_CPP_STORAGE.llm.create_chat_completion(messages=messages, seed=seed, **_parameters)
-                    text = output['choices'][0]['message']['content'].removeprefix(": ").lstrip()
+                    message = output['choices'][0]['message']
+                    raw_content = message['content'].removeprefix(": ").lstrip()
+                    
+                    # 优先尝试从 message 对象获取思维链，如果不存在则从内容中正则提取
+                    thought = message.get('thought', '').strip()
+                    if not thought:
+                        text, thought = extract_thought(raw_content)
+                    else:
+                        text = raw_content
+                        
                     out2.append(text)
+                    out_thought_list.append(thought)
                     if len(frames) > 1:
                         tmp_list.append(f"====== Image {i+1} ======")
+                        if thought:
+                            tmp_thought_list.append(f"====== Image {i+1} ======")
                     tmp_list.append(text)
+                    if thought:
+                        tmp_thought_list.append(thought)
                     
                 out1 = "\n\n".join(tmp_list)
+                out_thought = "\n\n".join(tmp_thought_list)
             else:
                 for image in frames:
                     if len(frames) > 1:
@@ -563,18 +609,45 @@ class llama_cpp_instruct_adv:
                     
                 messages.append({"role": "user", "content": user_content})
                 output = LLAMA_CPP_STORAGE.llm.create_chat_completion(messages=messages, seed=seed, **_parameters)
-                out1 = output['choices'][0]['message']['content'].removeprefix(": ").lstrip()
+                message = output['choices'][0]['message']
+                raw_content = message['content'].removeprefix(": ").lstrip()
+                
+                thought = message.get('thought', '').strip()
+                if not thought:
+                    out1, out_thought = extract_thought(raw_content)
+                else:
+                    out1 = raw_content
+                    out_thought = thought
+                    
                 out2 = [out1]
+                out_thought_list = [out_thought]
         else:
             messages.append({"role": "user", "content": user_content})
             output = LLAMA_CPP_STORAGE.llm.create_chat_completion(messages=messages, seed=seed, **_parameters)
-            out1 = output['choices'][0]['message']['content'].removeprefix(": ").lstrip()
+            message = output['choices'][0]['message']
+            raw_content = message['content'].removeprefix(": ").lstrip()
+            
+            thought = message.get('thought', '').strip()
+            if not thought:
+                out1, out_thought = extract_thought(raw_content)
+            else:
+                out1 = raw_content
+                out_thought = thought
+                
             out2 = [out1]
+            out_thought_list = [out_thought]
             
         if save_states:
             print(f"[llama-cpp_vlm] Saving state id={uid}...")
-            #LLAMA_CPP_STORAGE.states[f"{uid}"] = LLAMA_CPP_STORAGE.llm.save_state()
-            messages.append({"role": "assistant", "content": out1})
+            # 将原始带标签的内容存入历史，以便维持模型的思考能力
+            # 如果 thought 是从字段获取的，说明 content 本身不含标签，则手动拼接
+            if out_thought and "<think>" not in out1:
+                full_content_for_history = f"<think>\n{out_thought}\n</think>\n\n{out1}"
+            else:
+                full_content_for_history = out1 if not out_thought else f"<think>\n{out_thought}\n</think>\n\n{out1}"
+            
+            assistant_msg = {"role": "assistant", "content": full_content_for_history}
+            messages.append(assistant_msg)
             clear_message = self.sanitize_messages(messages)
             LLAMA_CPP_STORAGE.messages[f"{uid}"] = clear_message
         else:
@@ -592,14 +665,14 @@ class llama_cpp_instruct_adv:
             
         del messages
         gc.collect()
-        return (out1, out2, uid)
+        return (out1, out_thought, out2, uid)
 
 class llama_cpp_parameters:
     @classmethod
     def INPUT_TYPES(s):
         return {
             "required": {
-                "max_tokens": ("INT", {"default": 1024, "min": 0, "max": 4096, "step": 1}),
+                "max_tokens": ("INT", {"default": 1024, "min": 0, "max": 32768, "step": 1}),
                 "top_k": ("INT", {"default": 30, "min": 0, "max": 1000, "step": 1}),
                 "top_p": ("FLOAT", {"default": 0.9, "min": 0.0, "max": 1.0, "step": 0.01}),
                 "min_p": ("FLOAT", {"default": 0.05, "min": 0.0, "max": 1.0, "step": 0.01}),
