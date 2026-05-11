@@ -1,0 +1,275 @@
+{
+    "01_画面画质与构图": {
+        "[镜头] 景别大小与距离": {
+            "全景镜头(广角镜头)": "wide_shot",
+            "中景": "mid_shot",
+            "全身像": "full_shot",
+            "半身像": "bust",
+            "上半身": "upper_body",
+            "下半身": "lower_body",
+            "上半身+上半大腿（牛仔镜头）": "cowboy_shot"
+        },
+        "[镜头] 肖像与局部特写": {
+            "肖像画(脸+肩+偶尔再加胸)": "portrait",
+            "侧面肖像画(portrait的侧脸版)": "profile",
+            "侧面肖像画": "side_profile",
+            "上半身(旧": "bust_shot",
+            "特写": "close-up"
+        },
+        "[视角] 近距离与第一人称": {
+            "微距摄像": "macro photography",
+            "近景": "close shot",
+            "自拍视点": "selfie",
+            "第一人称视角": "first-person_view",
+            "越桌第一人称视角": "pov_across_table",
+            "越裆第一人称视角": "pov_crotch"
+        },
+        "[镜头] 特殊画面表现": {
+            "端详": "scan",
+            "美国运动相机厂商": "gopro",
+            "插入其他镜头或图片": "inset",
+            "貌似是横切面（还没试过）": "cross-section",
+            "X_射线": "x-ray"
+        },
+        "[对焦] 画面中心与焦点": {
+            "聚焦在单个人物(适合复杂场景)": "solo_focus",
+            "聚焦在xx上": "xx_focus",
+            "聚焦在面部": "face_focus",
+            "聚焦在眼睛": "eyes_focus",
+            "聚焦在脚上": "foot_focus",
+            "聚焦在臀部": "hip_focus",
+            "聚焦在屁股上": "ass_focus",
+            "聚焦在载具上": "vehicle_focus",
+            "一部作品中的主要人物集齐": "group_picture",
+            "画面内一位女性,在画面外有男性": "1girl_solo_focus",
+            "女性焦点": "female_focus",
+            "男性焦点": "male_focus"
+        },
+        "[视角] 局部窥视与突出": {
+            "(突出)指间": "between_fingers",
+            "腋窝偷看": "armpit_peek"
+        },
+        "[视角] 环境与俯瞰": {
+            "空中": "aerial"
+        },
+        "[视角] 拍摄角度": {
+            "正面视角": "front_view",
+            "侧面视角": "from_side",
+            "从上方↘": "from_above",
+            "从下方↗": "from_below",
+            "由室外向室内": "from_outside",
+            "后背视角": "from_back",
+            "斜侧面视角": "lateral_view",
+            "俯视视角": "back_view",
+            "朝向": "head_toward"
+        },
+        "[视角] 专业构图与透视": {
+            "动态角度": "dynamic_angle",
+            "电影角度": "cinematic_angle",
+            "倾斜角度": "dutch angle",
+            "透视法": "foreshortening",
+            "灭点 ?": "vanishing_point",
+            "远景透视画法": "fisheye",
+            "剪影": "silhouette"
+        },
+        "[后期] 镜头特效与光影质感": {
+            "景深（协调人景）": "depth of field",
+            "镜头光晕": "lens_flare",
+            "运动导致的模糊": "motion_blur",
+            "体现运动的线": "motion_lines",
+            "焦散": "caustics",
+            "背景虚化_/_散景": "bokeh",
+            "色差": "chromatic_aberration",
+            "过曝": "overexposure",
+            "等高线强化": "contour_deepening",
+            "立绘阴影": "drop_shadow"
+        },
+        "[质量] 画面分辨率与精度": {
+            "高分辨率（常用）": "highres",
+            "超高分辨率": "absurdres",
+            "极高分辨率": "incredibly_absurdres",
+            "壁纸": "wallpaper",
+            "低分辨率": "lowres",
+            "提高图片质量": "CG"
+        },
+        "[照明] 视觉光影效果": {
+            "正面光": "frontlight",
+            "侧面光": "sidelight",
+            "背光": "backlight",
+            "逆光": "backlighting",
+            "边缘光": "rim_light",
+            "强边缘光": "strong_rim_light",
+            "自上而下的光线": "god_rays",
+            "明亮的射线光束": "light_rays",
+            "环境光": "ambient_light",
+            "镜面高光": "specular_lighting",
+            "通过透光的织物看到人体轮廓": "see-through_silhouette",
+            "景深(画法)": "depth_of_field",
+            "背景模糊": "blurry",
+            "前景模糊": "blurry foreground",
+            "（平滑表面上的）光泽，光亮": "Gloss"
+        },
+        "[照明] 自然与环境光照": {
+            "阳光": "sunlight",
+            "太阳光束": "sun beam",
+            "斑驳的阳光": "dappled_sunlight",
+            "阳光透过树木": "sunlight_filtering_through_trees",
+            "荧光": "glowing_light",
+            "光线照射": "atrium"
+        },
+        "[照明] 光影明暗与虚实": {
+            "亮的": "light",
+            "暗的": "dark",
+            "苍白(薄)": "pale",
+            "阴影(树荫)": "shade",
+            "强阴影": "intense_shadows",
+            "加深(浓)": "deep",
+            "模糊": "obscure",
+            "昏暗的;_朦胧的": "dim",
+            "成荫的": "shady",
+            "昏暗": "dimly lit"
+        },
+        "[视角] 局部与裁切视角": {
+            "手臂超出图片外": "arms_out_of_frame",
+            "脚超出图片外": "feet_out_of_frame",
+            "手超出图片外": "hands_out_of_frame",
+            "超出图片外": "out_of_frame",
+            "只画了一部分腿": "cropped_legs",
+            "单脚不在图内": "foot_out_of_frame"
+        },
+        "[视角] 多重视角与展示": {
+            "多角度|多姿势": "multiple_views",
+            "姿势": "pose"
+        },
+        "[光效] 画面视觉效果": {
+            "发光的": "glowing",
+            "发光的眼睛(单眼)": "glowing_eye",
+            "发光的武器": "glowing_weapon"
+        },
+        "[视觉] 画面特效": {
+            "蒸汽": "steam",
+            "衍射十字星": "diffraction_spikes"
+        },
+        "[背景] 画布与排版细节": {
+            "单色背景": "monochrome_background",
+            "简单的背景": "simple_background",
+            "黑色背景": "black_background",
+            "白色背景": "white_background",
+            "透明背景": "transparent_background",
+            "米色背景": "beige_background",
+            "棕色背景": "brown_background",
+            "棕褐色背景": "tan_background",
+            "灰色背景": "grey_background",
+            "双色调背景": "two-tone_background",
+            "渐变的背景": "gradient_background",
+            "多彩的背景": "multicolored_background",
+            "彩虹背景": "rainbow_background",
+            "抽象背景": "abstract_background",
+            "菱形背景": "argyle_background",
+            "方格背景": "checkered_background",
+            "花朵点缀的背景": "floral_background",
+            "网点图背景": "halftone_background",
+            "桃色背景": "heart_background",
+            "蜂窝风格背景": "honeycomb_background",
+            "格子呢背景": "plaid_background",
+            "圆斑背景": "striped_background",
+            "画框": "border",
+            "边框": "pillarboxed",
+            "柱状画布背景": "rounded_corners",
+            "背景或画框是圆角": "viewfinder",
+            "相机取景框": "windowboxed",
+            "套着画框(背景)": "photo_background",
+            "照片为背景": "outside_border"
+        },
+        "[特效] 视觉元素与光效": {
+            "散落的叶子": "scattered_leaves",
+            "飞溅的彩色碎纸": "Flying_colored_shredded_paper",
+            "五颜六色的花瓣飞舞": "many_colorful_petals_are_flying",
+            "大五颜六色的泡泡": "big_colorful_Bubble",
+            "浮动光斑": "floating_light_spot",
+            "发光的蝴蝶": "Glowing_butterflies",
+            "雪花": "snowflakes",
+            "花瓣": "flower_petals",
+            "蒲公英": "dandelion",
+            "落叶": "fall_leaves",
+            "秋叶": "autumn_leaves",
+            "羽毛": "feather",
+            "碎纸屑": "shredded_paper",
+            "碎石": "Gravel",
+            "珍珠": "pearl",
+            "烟花": "fireworks",
+            "空中烟火": "aerial_fireworks",
+            "被画出来的空气": "visible_air",
+            "闪光": "sparkle",
+            "波浪线": "squiggle",
+            "锯齿线": "jaggy_lines",
+            "闪烁": "blinking",
+            "五角星": "pentagram",
+            "阴阳": "yin_yang",
+            "阴阳球": "yin_yang_orb",
+            "魔法阵": "magic_circle",
+            "万花筒": "Kaleidoscope",
+            "霓虹灯": "neon"
+        },
+        "[后期] 特殊视觉效果": {
+            "粘性的丝": "ropiness",
+            "速度线": "speed_lines",
+            "音效": "sound_effects",
+            "飞扬的汗珠": "flying_sweatdrops"
+        },
+        "[后期] 画面审查与特效": {
+            "马赛克": "mosaic_censoring",
+            "条状马赛克": "bar_censor",
+            "心形马赛克": "heart_censor",
+            "恶搞的马赛克": "novelty_censor",
+            "肥皂泡马赛克": "soap_censor",
+            "蒸汽马赛克|雾气马赛克": "steam_censor",
+            "模糊打码": "blur_censor",
+            "用尾巴遮住打码": "tail_censor",
+            "用人脸打码": "character_censor",
+            "简单巧妙的打码": "convenient_censoring",
+            "眼部打码": "identity_censor",
+            "圣光": "light_censor",
+            "乳头打了码": "nipple_censor",
+            "敷衍的打码": "pointless_censoring"
+        },
+        "[后期] 特殊视觉特效": {
+            "音效符号": "sounding"
+        },
+        "[背景] 风格化背景与排版": {
+            "蒸汽朋克": "steampunk",
+            "幻想风格": "fantasy",
+            "科技幻想": "hon",
+            "赛博朋克": "cyberpunk",
+            "花卉图案装饰的背景": "foral_background",
+            "星空背景": "starry_background",
+            "闪着星光的背景": "sparkle_background",
+            "城市背景": "cityscape",
+            "城市灯光背景": "city_lights",
+            "时钟背景": "clock_background",
+            "气泡背景": "bubble_background",
+            "回忆场景": "wall_of_text",
+            "文字背景": "background_text",
+            "背景文字": "spring_(season)"
+        },
+        "[特效] 视觉元素与效果": {
+            "气球": "balloon",
+            "纸灯笼": "paper_lantern",
+            "火焰": "flame",
+            "火星子": "sparks",
+            "爆炸": "explosion",
+            "电": "electricity",
+            "大家": "everyone",
+            "生肖": "chinese_zodiac",
+            "电子公告板": "electric_scoreboard",
+            "卡片": "card",
+            "强调线": "gold_trim",
+            "水滴": "drinking_straw",
+            "巧克力": "lollipop"
+        },
+        "[后期] 画面特效补遗": {
+            "二维码": "QR_code",
+            "条形码": "bar_code"
+        }
+    }
+}

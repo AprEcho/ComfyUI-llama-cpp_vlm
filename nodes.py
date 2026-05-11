@@ -13,12 +13,100 @@ from scipy.ndimage import gaussian_filter
 from .support.cqdm import cqdm
 from .support.gguf_layers import get_layer_count
 from .support.prompt_enhancer_preset import *
+from .support.prompt_library import PromptLibrary
 
 import folder_paths
 import comfy.model_management as mm
 import comfy.utils
+from server import PromptServer
+from aiohttp import web
 
 from llama_cpp import Llama
+
+base_path = os.path.dirname(os.path.realpath(__file__))
+prompt_lib = PromptLibrary(base_path)
+
+@PromptServer.instance.routes.get("/llama-cpp-vlm/prompts")
+async def get_prompts_api(request):
+    try:
+        categories = prompt_lib.get_categories()
+        data = {}
+        for cat in categories:
+            data[cat] = prompt_lib.get_library_data(cat)
+            
+        preset_cats = prompt_lib.get_preset_categories()
+        for cat in preset_cats:
+            preset_name = f"[预设] {cat}" if not cat.startswith("[") else cat
+            data[preset_name] = prompt_lib.get_presets(cat)
+            
+        return web.json_response(data)
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
+
+@PromptServer.instance.routes.post("/llama-cpp-vlm/prompts/save")
+async def save_prompts_api(request):
+    try:
+        body = await request.json()
+        category = body.get("category")
+        data = body.get("data")
+        
+        if not category or data is None:
+            return web.json_response({"error": "Missing category or data"}, status=400)
+            
+        if "[NEGATIVE]" in category:
+            return web.json_response({"error": "Cannot edit negatives preset yet."}, status=400)
+            
+        success = prompt_lib.save_library_data(category, data)
+            
+        if success:
+            return web.json_response({"status": "success"})
+        else:
+            return web.json_response({"error": "Failed to save"}, status=500)
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
+
+@PromptServer.instance.routes.post("/llama-cpp-vlm/presets/save")
+async def save_presets_api(request):
+    try:
+        body = await request.json()
+        name = body.get("name")
+        category = body.get("category", "My Presets")
+        pos = body.get("positive", "")
+        neg = body.get("negative", "")
+        
+        if not name:
+            return web.json_response({"error": "Missing preset name"}, status=400)
+            
+        # Format: "pos ||| neg"
+        content = f"{pos} ||| {neg}"
+        success = prompt_lib.save_preset(category, name, content)
+        
+        if success:
+            return web.json_response({"status": "success"})
+        else:
+            return web.json_response({"error": "Failed to save preset"}, status=500)
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
+
+@PromptServer.instance.routes.post("/llama-cpp-vlm/presets/delete")
+async def delete_presets_api(request):
+    try:
+        body = await request.json()
+        name = body.get("name")
+        category = body.get("category")
+        
+        if not name or not category:
+            return web.json_response({"error": "Missing preset name or category"}, status=400)
+            
+        success = prompt_lib.delete_preset(category, name)
+        
+        if success:
+            return web.json_response({"status": "success"})
+        else:
+            return web.json_response({"error": "Failed to delete preset"}, status=500)
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
+
 from llama_cpp.llama_chat_format import (
     Llava15ChatHandler, Llava16ChatHandler, MoondreamChatHandler,
     NanoLlavaChatHandler, Llama3VisionAlphaChatHandler, MiniCPMv26ChatHandler
@@ -389,9 +477,7 @@ class llama_cpp_model_loader:
             "image_min_tokens": image_min_tokens,
             "image_max_tokens": image_max_tokens
         }
-        if not LLAMA_CPP_STORAGE.llm or LLAMA_CPP_STORAGE.current_config != custom_config:
-            print("[llama-cpp_vlm] Loading model...")
-            LLAMA_CPP_STORAGE.load_model(custom_config)
+        # Lazy loading: Just return the config, don't load here.
         return (custom_config,)
 
 def extract_thought(text):
@@ -486,9 +572,12 @@ class llama_cpp_instruct_adv:
             clean_messages.append(new_msg)
         return clean_messages    
     def process(self, llama_model, preset_prompt, custom_prompt, system_prompt, inference_mode, max_frames, max_size, seed, force_offload, save_states, unique_id, parameters=None, images=None, queue_handler=None):
-        if not LLAMA_CPP_STORAGE.llm:
+        if not llama_model:
+            raise ValueError("Llama model configuration is required!")
+
+        if not LLAMA_CPP_STORAGE.llm or LLAMA_CPP_STORAGE.current_config != llama_model:
+            print(f"[llama-cpp_vlm] (Instruct) Loading model: {llama_model.get('model')}")
             LLAMA_CPP_STORAGE.load_model(llama_model)
-            #raise RuntimeError("The model has been unloaded or failed to load!")
         
         if parameters is None:
             parameters = {
@@ -1128,12 +1217,12 @@ class PromptEnhancerPreset:
                 "preset": (["Qwen-Image [EN]", "Qwen-Image [ZH]", "Qwen-Image 2512 [EN]", "Qwen-Image 2512 [ZH]", "Qwen-Image-Edit", "Qwen-Image-Edit 2509", "Qwen-Image-Edit 2511", "Z-Image Turbo", "Flux.2 T2I", "Flux.2 I2I", "Wan T2V [EN]", "Wan T2V [ZH]", "Wan I2V [EN]", "Wan I2V [ZH]", "Wan I2V Full-Auto [EN]", "Wan I2V Full-Auto [ZH]", "Wan FLF2V [EN]", "Wan FLF2V [ZH]"], )
             }
         }
-    
+
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("system_prompt",)
     FUNCTION = "main"
     CATEGORY = "llama-cpp-vlm"
-    
+
     def main(self, preset):
         match preset:
             case "Qwen-Image [EN]":
@@ -1174,7 +1263,138 @@ class PromptEnhancerPreset:
                 return (WAN_FLF2V_ZH,)
             case _:
                 raise ValueError(f'Unknow preset: "{preset}"')
+
+class LlamaOmniTaskPrompter:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "task (任务目标)": (["Text-to-Image (文生图)", "Image-to-Image (图生图)", "Text-to-Video (文生视频)", "Image-to-Video (图生视频)", "Inpaint (局部重绘)"],),
+                "model_optimize (模型优化)": (["General (通用)", "Flux", "Wan2.1", "LTX-Video"],),
+                "output_style (输出风格)": (["Natural Language (长句)", "Tags (标签列表)", "Positive+Negative (正向+负向)"],),
+                "user_prompt (中文意图/灵感)": ("STRING", {"multiline": True, "placeholder": "在此输入您的创意点子，支持中文..."}),
+                "library_tags (已选词库标签)": ("STRING", {"multiline": True, "placeholder": "词典点选的词条会自动出现在这里...", "default": ""}),
+                "negative_library_tags (已选负面词)": ("STRING", {"multiline": True, "placeholder": "词典点选的负面词条会自动出现在这里...", "default": ""}),
+                "llm_enhance (AI 智能增强)": ("BOOLEAN", {"default": False}),
+                "random_sampling (开启随机抽卡)": ("BOOLEAN", {"default": False}),
+                "seed (种子)": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
+            },
+            "optional": {
+                "llama_model": ("LLAMACPPMODEL",),
+                "image (参考图)": ("IMAGE",),
+                "sampling_count (抽卡数量)": ("INT", {"default": 3, "min": 1, "max": 10}),
+            }
+        }
+
+    RETURN_TYPES = ("STRING", "STRING", "STRING")
+    RETURN_NAMES = ("prompt (英文提示词)", "negative (负面词)", "description (中文描述)")
+    FUNCTION = "process"
+    CATEGORY = "llama-cpp-vlm/prompts"
+
+    def process(self, **kwargs):
+        task = kwargs.get("task (任务目标)")
+        model_opt = kwargs.get("model_optimize (模型优化)")
+        style = kwargs.get("output_style (输出风格)")
+        user_prompt = kwargs.get("user_prompt (中文意图/灵感)")
+        lib_tags_raw = kwargs.get("library_tags (已选词库标签)", "")
+        neg_lib_tags_raw = kwargs.get("negative_library_tags (已选负面词)", "")
+        llm_enhance = kwargs.get("llm_enhance (AI 智能增强)")
+        random_sampling = kwargs.get("random_sampling (开启随机抽卡)")
+        seed = kwargs.get("seed (种子)")
+        llama_model = kwargs.get("llama_model")
+        image = kwargs.get("image (参考图)")
+        sampling_count = kwargs.get("sampling_count (抽卡数量)", 3)
+
+        # 0. 标签翻译 (中文 -> 英文)
+        tag_map = prompt_lib.get_full_mapping()
+        def translate(raw_str):
+            if not raw_str: return ""
+            tags = [t.strip() for t in raw_str.split(",") if t.strip()]
+            return ", ".join([tag_map.get(t, t) for t in tags])
         
+        lib_tags = translate(lib_tags_raw)
+        neg_lib_tags = translate(neg_lib_tags_raw)
+
+        # 1. 基础构建 (Fast Path)
+        sampled_tags = ""
+        if random_sampling:
+            random.seed(seed)
+            # 根据任务智能选择分类
+            cats = ["01起手式", "02人物", "03服饰", "04人物发型", "05动作", "06面部表情", "场景道具", "景观", "艺术、魔法"]
+            if "Video" in task:
+                cats = ["05动作", "场景道具", "景观", "艺术、魔法", "颜色"]
+            sampled_tags = prompt_lib.random_sample(cats, sampling_count)
+
+        base_content = ", ".join([p for p in [sampled_tags, lib_tags, user_prompt] if p])
+
+        # 2. 如果不开启 AI 增强，直接拼接输出
+        if not llm_enhance or not llama_model:
+            neg_content = ", ".join([p for p in ["lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry", neg_lib_tags] if p])
+            return (base_content, neg_content, f"模式：直接拼接\n内容：{base_content}")
+
+        # 3. AI 增强路径 (智路径)
+        # 确保模型已加载
+        if not LLAMA_CPP_STORAGE.llm or LLAMA_CPP_STORAGE.current_config != llama_model:
+            print(f"[llama-cpp_vlm] (OmniPrompter) Loading model: {llama_model.get('model')}")
+            LLAMA_CPP_STORAGE.load_model(llama_model)
+
+        # 构建 System Prompt
+        sys_prompt = f"You are a professional Prompt Engineer for AI {('video' if 'Video' in task else 'image')} generation.\n"
+        sys_prompt += f"Task: {task}. Target Model Optimize: {model_opt}. Style: {style}.\n"
+
+        if model_opt == "Flux":
+            sys_prompt += "Optimization for Flux: Use descriptive, natural language. Avoid 'masterpiece', '8k', or technical tags. Focus on textures, lighting, and realistic details.\n"
+        elif model_opt == "Wan2.1" or model_opt == "LTX-Video":
+            sys_prompt += f"Optimization for {model_opt}: Focus on motion and temporal consistency. Describe movement, camera language (e.g., pan, zoom, tilt), and the flow of time.\n"
+
+        if style == "Natural Language (长句)":
+            sys_prompt += "Output Format: A single, cohesive, highly descriptive English paragraph.\n"
+        elif style == "Tags (标签列表)":
+            sys_prompt += "Output Format: A list of comma-separated English tags.\n"
+        elif style == "Positive+Negative (正向+负向)":
+            sys_prompt += "Output Format: Return the positive prompt first, followed by '###' and then the negative prompt.\n"
+
+        sys_prompt += "If the user inputs Chinese, translate and expand it into high-quality English. "
+        sys_prompt += "Directly output the English content without any prefix or reasoning."
+
+        # 调用 LLM
+        instruct_node = llama_cpp_instruct_adv()
+        # 模拟参数调用
+        params = {
+            "max_tokens": 1024, "top_k": 30, "top_p": 0.9, "temperature": 0.8
+        }
+
+        # 组装输入
+        llm_input = base_content
+        if image is not None:
+            llm_input = f"Based on the provided image and these ideas: {base_content}, create an optimized prompt."
+
+        res, thought, _, _ = instruct_node.process(
+            llama_model=llama_model,
+            preset_prompt="Empty - Nothing",
+            custom_prompt=llm_input,
+            system_prompt=sys_prompt,
+            inference_mode="images" if image is not None else "one by one",
+            max_frames=1, max_size=512, seed=seed,
+            force_offload=False, save_states=False,
+            unique_id="omni_prompter",
+            parameters=params,
+            images=image
+        )
+
+        # 解析输出
+        pos_out = res
+        default_neg = "lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry"
+        neg_out = ", ".join([p for p in [default_neg, neg_lib_tags] if p])
+        
+        if "###" in res:
+            parts = res.split("###")
+            pos_out = parts[0].strip()
+            ai_neg = parts[1].strip()
+            neg_out = ", ".join([p for p in [ai_neg, neg_lib_tags] if p])
+
+        return (pos_out, neg_out, f"AI 增强已生效\n任务：{task}\n思维链：{thought[:200]}...")
+
 NODE_CLASS_MAPPINGS = {
     "llama_cpp_model_loader": llama_cpp_model_loader,
     "llama_cpp_instruct_adv": llama_cpp_instruct_adv,
@@ -1188,19 +1408,21 @@ NODE_CLASS_MAPPINGS = {
     "bboxes_to_bbox": bboxes_to_bbox,
     "remove_code_block": remove_code_block,
     "PromptEnhancerPreset": PromptEnhancerPreset,
+    "LlamaOmniTaskPrompter": LlamaOmniTaskPrompter,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "llama_cpp_model_loader": "Llama-cpp Model Loader",
-    "llama_cpp_instruct_adv": "Llama-cpp Instruct",
-    "llama_cpp_parameters": "Llama-cpp Parameters",
-    "llama_cpp_unload_model": "Llama-cpp Unload Model",
-    "llama_cpp_clean_states": "Llama-cpp Clean States",
-    "parse_json_node": "Parse JSON",
-    "json_to_bbox": "JSON to BBoxes",
-    "bbox_to_segs": "BBoxes to SEGS",
-    "bbox_to_mask": "BBoxes to MASK",
-    "bboxes_to_bbox": "BBoxes to BBox",
-    "remove_code_block": "Unpack Code Block",
-    "PromptEnhancerPreset": "Prompt Enhancer Preset",
+    "llama_cpp_model_loader": "Llama-cpp 模型加载器 (Model Loader)",
+    "llama_cpp_instruct_adv": "Llama-cpp 智能提示词 (Instruct)",
+    "llama_cpp_parameters": "Llama-cpp 参数设置 (Parameters)",
+    "llama_cpp_unload_model": "Llama-cpp 卸载模型 (Unload Model)",
+    "llama_cpp_clean_states": "Llama-cpp 清除状态 (Clean States)",
+    "parse_json_node": "解析 JSON (Parse JSON)",
+    "json_to_bbox": "JSON 转边界框 (JSON to BBoxes)",
+    "bbox_to_segs": "边界框转 SEGS (BBoxes to SEGS)",
+    "bbox_to_mask": "边界框转遮罩 (BBoxes to MASK)",
+    "bboxes_to_bbox": "边界框选择 (BBoxes to BBox)",
+    "remove_code_block": "解包代码块 (Unpack Code Block)",
+    "PromptEnhancerPreset": "提示词增强预设 (Prompt Enhancer Preset)",
+    "LlamaOmniTaskPrompter": "Llama 全能任务提示词中枢 (Omni Prompter)",
 }

@@ -1,0 +1,27 @@
+{
+    "基础画质 (Basic Quality)": {
+        "通用画质修复": "lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry",
+        "模糊": "blurry",
+        "低分辨率": "low resolution",
+        "伪影": "jpeg artifacts",
+        "文字水印": "text, watermark, signature, username, title"
+    },
+    "肢体修复 (Anatomy)": {
+        "坏手": "bad hands, extra fingers, missing fingers, fused fingers, too many fingers, malformed limbs",
+        "坏肢体": "bad anatomy, mutated, deformed, disfigured",
+        "比例失调": "bad proportions",
+        "多余肢体": "extra arms, extra legs, extra limb"
+    },
+    "脸部修复 (Face)": {
+        "坏脸": "poorly drawn face, disfigured face, bad eyes",
+        "双重脸": "double face",
+        "眼球畸形": "mutated eyes, squinting"
+    },
+    "写实模型用 (Realistic)": {
+        "动漫感": "anime, cartoon, illustration, drawing, 2d",
+        "过度平滑": "plastic, smooth skin"
+    },
+    "动漫模型用 (Anime)": {
+        "写实感": "photorealistic, 3d, realistic"
+    }
+}
