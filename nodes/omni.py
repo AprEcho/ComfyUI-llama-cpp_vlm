@@ -1,5 +1,5 @@
 import random
-from .common import prompt_lib
+from ..core.common import prompt_lib
 
 class LlamaOmniTaskPrompter:
     @classmethod

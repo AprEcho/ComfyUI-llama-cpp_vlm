@@ -1,14 +1,13 @@
-from . import api
-from .llm_nodes import (
+from .llm import (
     llama_cpp_model_loader, llama_cpp_instruct_adv, llama_cpp_parameters,
     llama_cpp_unload_model, llama_cpp_clean_states
 )
-from .utils_nodes import (
+from .utils import (
     parse_json_node, json_to_bbox, bbox_to_segs, bbox_to_mask,
     bboxes_to_bbox, remove_code_block
 )
-from .omni_nodes import LlamaOmniTaskPrompter
-from .preset_nodes import PromptEnhancerPreset
+from .omni import LlamaOmniTaskPrompter
+from .presets import PromptEnhancerPreset
 
 NODE_CLASS_MAPPINGS = {
     "llama_cpp_model_loader": llama_cpp_model_loader,
@@ -41,5 +40,3 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "PromptEnhancerPreset": "提示词增强预设 (Prompt Enhancer Preset)",
     "LlamaOmniTaskPrompter": "Llama 全能任务提示词中枢 (Omni Prompter)",
 }
-
-__all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]

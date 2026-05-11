@@ -1,4 +1,3 @@
-import os
 import io
 import re
 import json
@@ -9,7 +8,7 @@ import numpy as np
 from PIL import Image, ImageDraw
 from scipy.ndimage import gaussian_filter
 
-from .common import any_type
+from ..core.common import any_type
 
 def image2base64(image):
     img = Image.fromarray(image)

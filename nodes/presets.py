@@ -1,4 +1,4 @@
-from .support.prompt_enhancer_preset import *
+from ..core.preset_strings import *
 
 class PromptEnhancerPreset:
     @classmethod

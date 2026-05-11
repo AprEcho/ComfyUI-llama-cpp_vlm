@@ -1,6 +1,6 @@
 from server import PromptServer
 from aiohttp import web
-from .common import prompt_lib
+from ..core.common import prompt_lib
 
 @PromptServer.instance.routes.get("/llama-cpp-vlm/prompts")
 async def get_prompts_api(request):
