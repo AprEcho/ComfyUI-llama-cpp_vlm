@@ -2,6 +2,10 @@ import random
 from ..core.common import prompt_lib
 
 class LlamaOmniTaskPrompter:
+    """
+    Llama 全能任务提示词中枢：
+    配合前端 Prompt Studio 插件，实现点击式标签选择、自动中英翻译和随机灵感抽卡。
+    """
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -13,7 +17,7 @@ class LlamaOmniTaskPrompter:
                 "seed (种子)": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
             },
             "optional": {
-                "sampling_count (抽卡数量)": ("INT", {"default": 3, "min": 1, "max": 10}),
+                "sampling_count (抽卡数量)": ("INT", {"default": 3, "min": 1, "max": 10, "tooltip": "随机抽取的标签数量"}),
             }
         }
 
@@ -23,6 +27,7 @@ class LlamaOmniTaskPrompter:
     CATEGORY = "llama-cpp-vlm/prompts"
 
     def process(self, **kwargs):
+        # 1. 获取输入参数
         user_prompt = kwargs.get("user_prompt (意图/灵感)", "")
         lib_tags_raw = kwargs.get("library_tags (已选词库标签)", "")
         neg_lib_tags_raw = kwargs.get("negative_library_tags (已选负面词)", "")
@@ -30,28 +35,37 @@ class LlamaOmniTaskPrompter:
         seed = kwargs.get("seed (种子)")
         sampling_count = kwargs.get("sampling_count (抽卡数量)", 3)
 
-        # 1. 标签翻译 (中文 -> 英文)
+        # 2. 标签翻译 (中文 -> 英文)
+        # 获取词库全量映射表
         tag_map = prompt_lib.get_full_mapping()
+        
         def translate(raw_str):
+            """将输入的逗号分隔中文标签串映射为英文"""
             if not raw_str: return ""
             tags = [t.strip() for t in raw_str.split(",") if t.strip()]
+            # 如果在词库中找到映射则使用英文，否则保留原样
             return ", ".join([tag_map.get(t, t) for t in tags])
 
         lib_tags = translate(lib_tags_raw)
         neg_lib_tags = translate(neg_lib_tags_raw)
 
-        # 2. 随机抽卡逻辑
+        # 3. 随机抽卡逻辑
         sampled_tags = ""
         if random_sampling:
             random.seed(seed)
-            # 默认使用通用分类进行抽卡
+            # 定义抽卡的分类池
             cats = ["01起手式", "02人物", "03服饰", "04人物发型", "05动作", "06面部表情", "场景道具", "景象", "艺术、魔法"]
+            # 从这些分类中随机挑选并抽取标签
             sampled_tags = prompt_lib.random_sample(cats, sampling_count)
 
-        # 3. 最终拼接
+        # 4. 最终提示词拼接
+        # 顺序：随机词 -> 词库点选词 -> 用户手写意图
         pos_content = ", ".join([p for p in [sampled_tags, lib_tags, user_prompt] if p])
         
+        # 默认通用负面词
         default_neg = "lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry"
+        # 拼接用户点选的负面词
         neg_content = ", ".join([p for p in [default_neg, neg_lib_tags] if p])
 
+        # 5. 返回结果与状态摘要
         return (pos_content, neg_content, f"模式：提示词工作室\n内容：{pos_content}")

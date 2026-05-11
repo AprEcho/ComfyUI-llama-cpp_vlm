@@ -11,6 +11,7 @@ from scipy.ndimage import gaussian_filter
 from ..core.common import any_type
 
 def image2base64(image):
+    """将图像转换为 base64 字符串，用于 LLM 推理"""
     img = Image.fromarray(image)
     buffered = io.BytesIO()
     img.save(buffered, format="JPEG", quality=85)
@@ -18,14 +19,16 @@ def image2base64(image):
     return img_base64
 
 def parse_json(json_str):
+    """将包含 Markdown 标记的 JSON 字符串解析为 Python 对象"""
     json_output = json_str.strip().removeprefix("```json").removesuffix("```")
     try:
         parsed = json.loads(json_output)
     except Exception as e:
-        raise ValueError(f"Unable to load JSON data!\n{e}")
+        raise ValueError(f"无法加载 JSON 数据!\n{e}")
     return parsed
 
 def scale_image(image: torch.Tensor, max_size: int = 128):
+    """缩放图像，同时保持比例，主要用于多图推理时的显存优化"""
     img_np = np.clip(255.0 * image.cpu().numpy().squeeze(), 0, 255).astype(np.uint8)
     img_pil = Image.fromarray(img_np)
 
@@ -37,6 +40,7 @@ def scale_image(image: torch.Tensor, max_size: int = 128):
     return np.array(img_resized)
 
 def qwen3bbox(image, json_data):
+    """针对 Qwen 模型的 1000x1000 归一化坐标进行像素级缩放"""
     img_np = np.clip(255.0 * image.cpu().numpy().squeeze(), 0, 255).astype(np.uint8)
     img = Image.fromarray(img_np)
     bboxes = []
@@ -51,6 +55,7 @@ def qwen3bbox(image, json_data):
     return bboxes
 
 def draw_bbox(image, json_data, mode):
+    """在图片上绘制边界框和标签，方便可视化预览"""
     label_colors = {}
     img_np = np.clip(255.0 * image.cpu().numpy().squeeze(), 0, 255).astype(np.uint8)
     img = Image.fromarray(img_np)
@@ -65,6 +70,7 @@ def draw_bbox(image, json_data, mode):
             except Exception:
                 label = "bbox"
         x0, y0, x1, y1 = item["bbox_2d"]
+        # 如果是 Qwen 模型，先转换坐标
         if mode in ["Qwen3-VL", "Qwen2.5-VL"]:
             size = 1000
             x0 = x0 / size * img.width
@@ -84,6 +90,7 @@ def draw_bbox(image, json_data, mode):
     return torch.from_numpy(np.array(img).astype(np.float32) / 255.0).unsqueeze(0)
 
 def extract_thought(text):
+    """从模型输出中提取 <think> 标签内的思维链内容"""
     thought_match = re.search(r'<think>(.*?)</think>', text, re.DOTALL)
     if thought_match:
         thought = thought_match.group(1).strip()
@@ -100,6 +107,7 @@ def extract_thought(text):
     return text, ""
 
 class json_to_bbox:
+    """JSON 转边界框节点：将 LLM 输出的文本坐标转换为 ComfyUI 坐标数据"""
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -145,12 +153,14 @@ class json_to_bbox:
         for i, j in enumerate(json_input):
             bboxes = parse_json(j)
 
+            # 根据标签过滤
             if label != "":
                 try:
                     bboxes = [item for item in bboxes if item["label"] == label]
                 except Exception:
                     bboxes = [item for item in bboxes if item.get("text_content") == label]
 
+            # 绘制可视化预览
             if total_images > 0:
                 curr_idx = i if i < total_images else (total_images - 1)
                 curr_img = flat_images_list[curr_idx]
@@ -167,9 +177,10 @@ class json_to_bbox:
                     print(f"Error drawing on image {curr_idx}: {e}")
                     processed_flat_results.append(curr_img)
 
+            # 坐标转换逻辑
             if mode in ["Qwen3-VL", "Qwen2.5-VL"]:
                 if total_images == 0:
-                    raise ValueError("Image required for Qwen mode")
+                    raise ValueError("Qwen 模式需要连接图像以确定分辨率")
                 curr_idx = i if i < total_images else (total_images - 1)
                 bbox = qwen3bbox(flat_images_list[curr_idx][0], bboxes)
             else:
@@ -177,6 +188,7 @@ class json_to_bbox:
 
             output_bboxes.append(bbox)
 
+        # 还原 Batch 结构
         restructured_images_list = []
         cursor = 0
         for count in original_structure:
@@ -188,6 +200,7 @@ class json_to_bbox:
         return (output_bboxes, restructured_images_list)
 
 class SEG:
+    """ComfyUI-Impact-Pack 兼容的分割对象结构"""
     def __init__(self, cropped_image, cropped_mask, confidence, crop_region, bbox, label, control_net_wrapper=None):
         self.cropped_image = cropped_image
         self.cropped_mask = cropped_mask
@@ -198,6 +211,7 @@ class SEG:
         self.control_net_wrapper = control_net_wrapper
 
 class bbox_to_segs:
+    """边界框转 SEGS 节点：将通用 BBOX 转换为 Impact-Pack 的 SEGS 格式"""
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -233,12 +247,14 @@ class bbox_to_segs:
             if crop_h <= 0 or crop_w <= 0:
                 continue
 
+            # 创建裁剪区域内的 Mask
             local_mask_np = np.zeros((crop_h, crop_w), dtype=np.float32)
             local_mask_np[dilation:dilation+(y2-y1), dilation:dilation+(x2-x1)] = 1.0
 
             if feather > 0:
                 local_mask_np = gaussian_filter(local_mask_np, sigma=feather)
 
+            # 提取裁剪后的图像
             cropped_img_padded = torch.zeros((crop_h, crop_w, 3), dtype=image.dtype, device=image.device)
             src_x1, src_y1 = max(0, x1_exp), max(0, y1_exp)
             src_x2, src_y2 = min(width, x2_exp), min(height, y2_exp)
@@ -261,6 +277,7 @@ class bbox_to_segs:
         return ((mask_shape, seg_list),)
 
 class bbox_to_mask:
+    """边界框转遮罩节点：根据坐标生成用于重绘的 Mask"""
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -301,6 +318,7 @@ class bbox_to_mask:
         return (combined_full_mask.unsqueeze(0),)
 
 class bboxes_to_bbox:
+    """多框选一节点：从一组边界框中提取特定索引的框"""
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -322,6 +340,7 @@ class bboxes_to_bbox:
         return (bboxes[image_index],)
 
 class parse_json_node:
+    """通用 JSON 解析节点：支持通过点路径（dotted key）提取 JSON 字段并自动转换类型"""
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -354,6 +373,7 @@ class parse_json_node:
         return (result["any"], result["string"], result["int"], result["float"], result["boolean"])
 
 def get_nested_value(data, dotted_key, default=None):
+    """支持 'a.0.b' 这种格式的深度嵌套值提取"""
     keys = dotted_key.split('.')
     for key in keys:
         if isinstance(data, str):
@@ -365,6 +385,7 @@ def get_nested_value(data, dotted_key, default=None):
     return data
 
 class remove_code_block:
+    """解包代码块节点：去除 Markdown 的 ```label ... ``` 包裹标记"""
     @classmethod
     def INPUT_TYPES(s):
         return {
