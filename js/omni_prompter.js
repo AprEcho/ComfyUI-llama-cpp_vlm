@@ -10,10 +10,99 @@ app.registerExtension({
             const onNodeCreated = nodeType.prototype.onNodeCreated;
             nodeType.prototype.onNodeCreated = function () {
                 const r = onNodeCreated ? onNodeCreated.apply(this, arguments) : undefined;
+                
+                // 1. 添加提示词工作室按钮
                 this.addWidget("button", "🎨 Llama Prompt Studio", null, () => {
                     LlamaStudio.open(this);
                 });
+
+                // 2. 绑定权重调整功能
+                // 延时等待 DOM 渲染完成，确保能抓到 textarea
+                setTimeout(() => {
+                    const promptWidget = this.widgets.find(w => w.name === "user_prompt (意图/灵感)");
+                    if (promptWidget && promptWidget.inputEl) {
+                        this.setupWeightAdjustment(promptWidget.inputEl);
+                    }
+                }, 100);
+
                 return r;
+            };
+
+            // 权重调整核心逻辑
+            nodeType.prototype.setupWeightAdjustment = function (inputEl) {
+                const adjustWeight = (delta) => {
+                    const start = inputEl.selectionStart;
+                    const end = inputEl.selectionEnd;
+                    let text = inputEl.value;
+
+                    // 获取当前光标位置的单词或选中的文本
+                    let selectedText = text.substring(start, end);
+                    let rangeStart = start;
+                    let rangeEnd = end;
+
+                    // 如果没有选中文本，尝试自动捕捉光标下的单词
+                    if (start === end) {
+                        // 向前找
+                        const textBefore = text.substring(0, start);
+                        const beforeMatch = textBefore.match(/[a-zA-Z0-9_.\u4e00-\u9fa5\s]+$/);
+                        // 向后找
+                        const textAfter = text.substring(start);
+                        const afterMatch = textAfter.match(/^[a-zA-Z0-9_.\u4e00-\u9fa5\s]+/);
+                        
+                        if (beforeMatch || afterMatch) {
+                            rangeStart = start - (beforeMatch ? beforeMatch[0].length : 0);
+                            rangeEnd = start + (afterMatch ? afterMatch[0].length : 0);
+                            selectedText = text.substring(rangeStart, rangeEnd).trim();
+                        }
+                    }
+
+                    if (!selectedText) return;
+
+                    // 正则：匹配 (text:weight)
+                    const weightRegex = /^\((.*):([0-9.]+)\)$/;
+                    const match = selectedText.match(weightRegex);
+
+                    let replacement;
+                    if (match) {
+                        const content = match[1];
+                        let weight = parseFloat(match[2]);
+                        weight = Math.max(0, parseFloat((weight + delta).toFixed(2)));
+                        replacement = `(${content}:${weight})`;
+                    } else {
+                        // 如果是纯文本，包裹并设置初始权重
+                        let weight = Math.max(0, parseFloat((1.0 + delta).toFixed(2)));
+                        replacement = `(${selectedText}:${weight})`;
+                    }
+
+                    const newText = text.substring(0, rangeStart) + replacement + text.substring(rangeEnd);
+                    inputEl.value = newText;
+                    
+                    // 保持选中状态
+                    inputEl.setSelectionRange(rangeStart, rangeStart + replacement.length);
+                    
+                    // 触发 ComfyUI 内部更新
+                    if (inputEl.oninput) inputEl.oninput();
+                    const widget = this.widgets.find(w => w.inputEl === inputEl);
+                    if (widget) widget.value = newText;
+                    this.setDirtyCanvas(true, true);
+                };
+
+                // A. 鼠标 Alt + 滚轮 (避开浏览器 Ctrl+滚轮 缩放冲突)
+                inputEl.addEventListener("wheel", (e) => {
+                    if (!e.altKey) return;
+                    e.preventDefault();
+                    const delta = e.deltaY > 0 ? -0.05 : 0.05;
+                    adjustWeight(delta);
+                }, { passive: false });
+
+                // B. 键盘 Ctrl + 方向键 (行业通用快捷键)
+                inputEl.addEventListener("keydown", (e) => {
+                    if (e.ctrlKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
+                        e.preventDefault();
+                        const delta = e.key === "ArrowUp" ? 0.05 : -0.05;
+                        adjustWeight(delta);
+                    }
+                });
             };
         }
     }
@@ -282,6 +371,11 @@ const LlamaStudio = {
     },
 
     renderItems(obj, isNegCat, container) {
+        // 辅助函数：判断标签是否已被选中（兼容带权重格式）
+        const isSelected = (key, stage) => {
+            return stage.some(t => t === key || t.startsWith(`(${key}:`));
+        };
+
         for (const [key, value] of Object.entries(obj)) {
             if (typeof value === "object" && value !== null) {
                 container.appendChild($el("div", { textContent: key, style: { gridColumn: "1 / -1", color: "#00bcd4", fontSize: "12px", padding: "15px 0 5px 0", borderBottom: "1px solid #333", fontWeight: "bold" } }));
@@ -298,8 +392,8 @@ const LlamaStudio = {
                     $el("span", { textContent: value, style: { fontSize: "10px", opacity: "0.5", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } })
                 ]);
                 
-                if (this.stagePos.includes(key)) card.classList.add("selected-pos");
-                if (this.stageNeg.includes(key)) card.classList.add("selected-neg");
+                if (isSelected(key, this.stagePos)) card.classList.add("selected-pos");
+                if (isSelected(key, this.stageNeg)) card.classList.add("selected-neg");
                 
                 container.appendChild(card);
             }
@@ -311,7 +405,9 @@ const LlamaStudio = {
         const isNeg = item.isNeg;
         const stage = isNeg ? this.stageNeg : this.stagePos;
         
-        const isCurrentlySelected = stage.includes(item.key);
+        // 查找是否存在该标签（包括带权重的版本）
+        const existingIndex = stage.findIndex(t => t === item.key || t.startsWith(`(${item.key}:`));
+        const isCurrentlySelected = existingIndex !== -1;
 
         if (event.shiftKey && this.lastClickedIndex !== -1) {
             const start = Math.min(this.lastClickedIndex, index);
@@ -320,7 +416,7 @@ const LlamaStudio = {
             for (let i = start; i <= end; i++) {
                 const batchItem = this.displayedTags[i];
                 const bStage = batchItem.isNeg ? this.stageNeg : this.stagePos;
-                const bIdx = bStage.indexOf(batchItem.key);
+                const bIdx = bStage.findIndex(t => t === batchItem.key || t.startsWith(`(${batchItem.key}:`));
                 
                 if (isCurrentlySelected) {
                     if (bIdx > -1) bStage.splice(bIdx, 1);
@@ -329,7 +425,7 @@ const LlamaStudio = {
                 }
             }
         } else {
-            if (isCurrentlySelected) stage.splice(stage.indexOf(item.key), 1);
+            if (isCurrentlySelected) stage.splice(existingIndex, 1);
             else stage.push(item.key);
         }
 
@@ -497,15 +593,44 @@ const LlamaStudio = {
         const renderStage = (container, tags, isNeg) => {
             const el = this.window.querySelector(container);
             el.innerHTML = "";
-            tags.forEach(t => {
+            tags.forEach((t, index) => {
                 const chip = $el("div.ls-stage-chip" + (isNeg ? ".ls-stage-neg" : ".ls-stage-pos"), {
-                    textContent: t
+                    textContent: t,
+                    title: "滚轮增减权重"
                 }, [
                     $el("span", { 
                         textContent: "✕", style: { cursor: "pointer", fontSize: "14px", marginLeft: "8px", fontWeight: "bold" },
-                        onclick: (e) => { e.stopPropagation(); tags.splice(tags.indexOf(t), 1); this.refresh(); }
+                        onclick: (e) => { e.stopPropagation(); tags.splice(index, 1); this.refresh(); }
                     })
                 ]);
+
+                // 核心优化：直接滚动气泡调整权重
+                chip.addEventListener("wheel", (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    const delta = e.deltaY > 0 ? -0.05 : 0.05;
+                    
+                    // 解析当前权重 (tag:1.1)
+                    const weightRegex = /^\((.*):([0-9.]+)\)$/;
+                    const match = t.match(weightRegex);
+                    
+                    let newTag;
+                    if (match) {
+                        const content = match[1];
+                        let weight = parseFloat(match[2]);
+                        weight = Math.max(0, parseFloat((weight + delta).toFixed(2)));
+                        newTag = `(${content}:${weight})`;
+                    } else {
+                        // 首次包裹
+                        let weight = Math.max(0, parseFloat((1.0 + delta).toFixed(2)));
+                        newTag = `(${t}:${weight})`;
+                    }
+
+                    tags[index] = newTag;
+                    this.refresh();
+                }, { passive: false });
+
                 el.appendChild(chip);
             });
         };
